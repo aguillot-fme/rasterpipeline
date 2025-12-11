@@ -14,6 +14,8 @@ x-airflow-common: &airflow-common
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
     AIRFLOW__CORE__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
     _PIP_ADDITIONAL_REQUIREMENTS: ''
+    DOCKER_HOST: tcp://docker-proxy:2375
+    DOCKER_SOCKET: tcp://docker-proxy:2375
     # MinIO Config for Airflow/Project
     STORAGE_TYPE: s3
     S3_BUCKET: raster-data
@@ -27,13 +29,13 @@ x-airflow-common: &airflow-common
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
     - .:/opt/airflow/dags/repo
-    - /var/run/docker.sock:/var/run/docker.sock
-  user: "${AIRFLOW_UID:-0}:0"
   depends_on: &airflow-common-depends-on
     postgres:
       condition: service_healthy
     minio:
       condition: service_healthy
+    docker-proxy:
+      condition: service_started
 
 services:
   postgres:
@@ -103,6 +105,19 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      POST: 1
+      INFO: 1
+      PING: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
 
   processing-image:
     image: raster-processing:latest

@@ -28,7 +28,7 @@ DEFAULT_RASTER_PATH = os.getenv(
 )
 PROCESSING_IMAGE = os.getenv("PROCESSING_IMAGE", "raster-processing:latest")
 PROCESSING_NETWORK = os.getenv("DOCKER_NETWORK", "rasterpipeline_default")
-DOCKER_SOCKET = os.getenv("DOCKER_SOCKET", "unix://var/run/docker.sock")
+DOCKER_SOCKET = os.getenv("DOCKER_SOCKET") or os.getenv("DOCKER_HOST") or "unix://var/run/docker.sock"
 DEV_CODE_MOUNT = os.getenv("DEV_CODE_MOUNT", "").lower() in {"1", "true", "yes"}
 HOST_REPO_PATH = os.getenv("HOST_REPO_PATH")
 PROCESSING_ENV = {
@@ -69,6 +69,8 @@ def get_processing_operator(task_id, command, environment=None, **kwargs):
         network_mode=PROCESSING_NETWORK,
         environment=merged_env,
         mounts=mounts or None,
+        mem_limit="512m",
+        cpus=1.0,
         **kwargs,
     )
 
