@@ -1,0 +1,20 @@
+graph TB
+    User[User/External System]
+    
+    subgraph "Raster Data Pipeline"
+        API[REST API (FastAPI)]
+        Airflow[Airflow Orchestrator]
+        FME[FME Flow]
+        Storage[Storage Layer]
+        Iceberg[Iceberg Lakehouse]
+    end
+    
+    User -->|Triggers| API
+    User -->|Uploads| Storage
+    API -->|Triggers| Airflow
+    API -->|Triggers| FME
+    Airflow -->|Reads/Writes| Storage
+    FME -->|Reads/Writes| Storage
+    Airflow -->|Writes| Iceberg
+    FME -->|Writes| Iceberg
+    API -->|Reads Metadata| Iceberg

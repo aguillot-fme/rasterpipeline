@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+.pytest_cache/
+
+# Docker
+postgres_data/
+minio_data/
+
+# Airflow
+logs/
+airflow.db
+unittests.cfg
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project Data
+data/
+raw/
+processed/
+*.log
