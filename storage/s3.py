@@ -71,7 +71,6 @@ class S3Storage(StorageBackend):
 
     def read_file(self, path: str) -> bytes:
         bucket, key = self._bucket_and_key(path)
-        print(f"[S3Storage] Reading s3://{bucket}/{key}")
         response = self.s3.get_object(Bucket=bucket, Key=key)
         return response["Body"].read()
 
@@ -99,4 +98,3 @@ class S3Storage(StorageBackend):
         self.s3.download_file(bucket, key, tmp.name)
         tmp.close()
         return tmp.name
-

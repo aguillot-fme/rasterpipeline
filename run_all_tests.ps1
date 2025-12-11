@@ -76,12 +76,11 @@ function Wait-For-Healthy {
 
 # Ensure Airflow metadata knows about the latest DAG files
 Write-Host "Reserializing DAGs to refresh the UI metadata..."
-docker-compose exec airflow-scheduler airflow dags reserialize
-
+docker-compose exec --user airflow airflow-scheduler /bin/bash -c "python -m airflow dags reserialize"
 # Run pytest inside the airflow-scheduler container
 Write-Host "Running pytest inside the airflow-scheduler container (excluding REST trigger test)..."
 # Use docker-compose exec to run pytest from the project root inside the airflow-scheduler container
-docker-compose exec airflow-scheduler /bin/bash -lc "cd /opt/airflow/dags/repo && pytest tests -k 'not rest_trigger'"
+docker-compose exec airflow-scheduler /bin/bash -c "cd /opt/airflow/dags/repo && python -m pytest tests -k 'not rest_trigger'"
 
 Write-Host "Running REST trigger test from the host environment..."
 $env:AIRFLOW_REST_URL = "http://localhost:8080"

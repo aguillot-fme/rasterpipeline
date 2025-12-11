@@ -1,5 +1,8 @@
-from storage import StorageBackend
+import argparse
+
+from storage import StorageBackend, get_storage_backend
 from .helpers.raster_utils import read_raster_data
+from .helpers import find_raster_by_id
 import numpy as np
 import rasterio
 from rasterio.io import MemoryFile
@@ -74,3 +77,50 @@ def calculate_ndvi(
         storage.write_file(output_path, memfile.read())
         
     return output_path
+
+
+def _derive_output_path(input_path: str, file_id: str | None = None) -> str:
+    candidate = input_path
+    if "/raw/" in input_path:
+        candidate = input_path.replace("/raw/", "/processed/", 1)
+    elif "raw" in input_path:
+        candidate = input_path.replace("raw", "processed", 1)
+
+    if candidate.endswith(".tif"):
+        candidate = candidate[:-4] + "_ndvi.tif"
+    elif file_id:
+        candidate = f"processed/{file_id}/ndvi.tif"
+    else:
+        candidate = f"{candidate}_ndvi"
+
+    return candidate
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Compute NDVI for an ingested raster.")
+    parser.add_argument("--file-id", help="Ingestion file id to locate rasters in storage.")
+    parser.add_argument("--red-band-path", help="Explicit path to the red band raster.")
+    parser.add_argument("--nir-band-path", help="Explicit path to the NIR band raster (defaults to red).")
+    parser.add_argument("--output-path", help="Destination path; defaults to processed/<file_id>/_ndvi.tif")
+    parser.add_argument("--red-band-index", type=int, default=1)
+    parser.add_argument("--nir-band-index", type=int, default=1)
+    args = parser.parse_args()
+
+    storage = get_storage_backend()
+    red_path = args.red_band_path or find_raster_by_id(storage, args.file_id, base_dir="raw", pattern="*.tif")
+    nir_path = args.nir_band_path or red_path
+    output = args.output_path or _derive_output_path(red_path, args.file_id)
+
+    result_path = calculate_ndvi(
+        storage,
+        red_path,
+        nir_path,
+        output,
+        red_band_index=args.red_band_index,
+        nir_band_index=args.nir_band_index,
+    )
+    print(result_path)
+
+
+if __name__ == "__main__":
+    main()

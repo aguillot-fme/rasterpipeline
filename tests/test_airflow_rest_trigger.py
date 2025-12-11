@@ -13,6 +13,7 @@ import requests
 DAG_ID = "raster_ingest"
 DEFAULT_SOURCE = "D:/rasterpipeline/data/raw/HEL_0_0.tif"
 TERMINAL_STATES = {"success", "failed"}
+DEFAULT_WAIT_SECONDS = int(os.getenv("TEST_DAG_WAIT_SECONDS", "60"))
 
 
 def _get_access_token(base_http: str, username: str, password: str) -> str:
@@ -128,8 +129,8 @@ def test_trigger_dag_via_rest():
     if resp.status_code not in (200, 201):
         pytest.fail(f"Failed to trigger DAG ({resp.status_code}): {resp.text}")
 
-    # Poll for a terminal state; keep it short to avoid hanging the suite
-    deadline = time.time() + 10
+    # Poll for a terminal state; allow extra time for image pulls/startup but keep bounded
+    deadline = time.time() + DEFAULT_WAIT_SECONDS
     last_state = None
     while time.time() < deadline:
         try:
