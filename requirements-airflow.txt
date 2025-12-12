@@ -1,0 +1,17 @@
+# Airflow and Airflow-provider dependencies for this repo.
+#
+# Airflow itself is pinned to match the Docker image in `Dockerfile`.
+# Provider versions should be installed using the official constraints file
+# for that Airflow/Python version to avoid resolver breakage.
+#
+# Example:
+#   pip install -r requirements-airflow.txt \
+#     -c https://raw.githubusercontent.com/apache/airflow/constraints-3.1.3/constraints-3.10.txt
+#
+# If you bump AIRFLOW_VERSION or Python, update the constraints URL accordingly.
+
+apache-airflow==3.1.3
+apache-airflow-providers-apache-iceberg
+apache-airflow-providers-fab[ui,password-auth]
+apache-airflow-providers-docker
+

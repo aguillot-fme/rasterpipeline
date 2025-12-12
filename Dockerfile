@@ -18,7 +18,10 @@ RUN apt-get update && \
 USER airflow
 
 COPY requirements.txt /requirements.txt
-RUN pip install --no-cache-dir -r /requirements.txt
+# Install project requirements using the official Airflow constraints to pin provider transitive deps.
+# This reduces install breakage across environments.
+RUN pip install --no-cache-dir -r /requirements.txt \
+    -c https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${CONSTRAINT_PY}.txt
 
 # Copy project code
 COPY --chown=airflow:root . /opt/airflow/dags/repo

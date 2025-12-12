@@ -19,6 +19,15 @@ You can trigger the Airflow DAG (`raster_ingest`) via the Airflow REST API or UI
 ### Prerequisites
 - Docker & Docker Compose
 
+### Installing Airflow Dependencies (non-Docker)
+If you want to run Airflow locally without Docker, install Airflow and its providers using the pinned list and Apache constraints:
+```bash
+pip install -r requirements-airflow.txt \
+  -c https://raw.githubusercontent.com/apache/airflow/constraints-3.1.3/constraints-3.10.txt
+pip install -r requirements.txt
+```
+If you change the Airflow or Python version, use the matching constraints URL.
+
 ### Start the Pipeline
 ```bash
 docker-compose up --build
