@@ -31,6 +31,9 @@ Use the Airflow UI (http://localhost:8080) or REST API to trigger runs of `raste
 ### Access Interfaces
 - **MinIO Console**: http://localhost:9001 (User: `minioadmin`, Pass: `minioadmin`)
 
+### Credentials (dev-only)
+- Default credentials in this repo (Airflow: `airflow`/`airflow`, MinIO: `minioadmin`/`minioadmin`, Postgres: `airflow`/`airflow`, JWT secret: `shared_jwt_secret`) are for local development only. Override them in production via environment variables or Docker secrets and rotate any reused values before publishing.
+
 ## Testing
 
 Run the test suite using the provided script (Powershell):
@@ -47,4 +50,3 @@ pytest tests/
 - `processing/`: Core processing logic (ingest, transform, metrics).
 - `storage/`: Storage abstraction layer.
 - `tests/`: Unit and integration tests.
-
