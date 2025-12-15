@@ -79,7 +79,7 @@ with dag:
             "-m",
             "pointcloud_processing.ingest",
             "--source-path",
-            "{{ (dag_run.conf.get('source_path') if dag_run and dag_run.conf else params.default_pointcloud_path) or '' }}",
+            "{{ (dag_run.conf.get('source_path') if dag_run and dag_run.conf else params.default_pointcloud_path) or params.default_pointcloud_path }}",
             "--destination-dir",
             "pointcloud/raw",
         ],
