@@ -59,3 +59,6 @@ pytest tests/
 - `processing/`: Core processing logic (ingest, transform, metrics).
 - `storage/`: Storage abstraction layer.
 - `tests/`: Unit and integration tests.
+
+## Roadmap
+For details on completed features and future plans, see the [Project Roadmap](roadmap.md).
