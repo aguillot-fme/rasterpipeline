@@ -16,6 +16,9 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # Vendored pointcloudlib (avoids network/auth during docker builds).
 COPY pointcloud_processing/vendor/pointcloudlib /app/pointcloudlib
 
+# Pointcloud processing task entrypoints (used by Airflow DockerOperator).
+COPY pointcloud_processing /app/pointcloud_processing
+
 # Copy shared storage helpers to enable S3/MinIO reads/writes from pointcloud tasks.
 COPY storage /app/storage
 
