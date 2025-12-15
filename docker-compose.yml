@@ -173,6 +173,15 @@ services:
       dockerfile: processing/Dockerfile
     profiles: ["donotstart"]
 
+  pointcloud-processing-image:
+    image: pointcloud-processing:latest
+    build:
+      context: .
+      dockerfile: pointcloud_processing/Dockerfile
+      args:
+        POINTCLOUDLIB_REF: v0.1.1
+    profiles: ["donotstart"]
+
 volumes:
   postgres_data:
   minio_data:
