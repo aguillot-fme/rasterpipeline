@@ -86,6 +86,9 @@ Write-Host "Running REST trigger test from the host environment..."
 $env:AIRFLOW_REST_URL = "http://localhost:8080"
 pytest tests/test_airflow_rest_trigger.py
 
+Write-Host "Running pointcloud pipeline smoke test from the host environment..."
+pytest tests/test_pointcloud_pipeline_real.py
+
 Write-Host "Tests completed."
 
 # Stop only the services we started (if any)
