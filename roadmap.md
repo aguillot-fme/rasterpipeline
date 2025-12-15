@@ -18,17 +18,17 @@
   - [x] Migration of legacy code to `legacy/`.
 
 ## 2. Data Management & Integrations (In Progress)
-- [ ] **Apache Iceberg Integration**:
-  - [x] Basic `IcebergWriter` and Schema.
-  - [x] Initial write task in `raster_ingest` DAG.
-  - [ ] Full Catalog implementation (REST/Hive).
-  - [ ] Schema evolution support.
 - [ ] **Observability**:
   - [x] Basic metrics calculation task.
   - [ ] Integration with Prometheus/Grafana for visualization.
   - [ ] Airflow Monitoring/Alerting.
 
 ## 3. Production Readiness (Backlog)
+- [ ] **Apache Iceberg Integration**:
+  - [x] Basic `IcebergWriter` and Schema.
+  - [x] Initial write task in `raster_ingest` DAG.
+  - [ ] Full Catalog implementation (REST/Hive).
+  - [ ] Schema evolution support.
 - [ ] **CI/CD Pipeline**:
   - [ ] GitHub Actions / GitLab CI workflows.
   - [ ] Automated image building and pushing.
