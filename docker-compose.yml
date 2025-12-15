@@ -178,7 +178,18 @@ services:
     build:
       context: .
       dockerfile: pointcloud_processing/Dockerfile
+    environment:
+      # Default to MinIO so `docker compose run pointcloud-processing-image ...` persists objects across runs.
+      STORAGE_TYPE: s3
+      S3_BUCKET: raster-data
+      AWS_ACCESS_KEY_ID: minioadmin  # dev-only; override in prod
+      AWS_SECRET_ACCESS_KEY: minioadmin  # dev-only; override in prod
+      AWS_DEFAULT_REGION: us-east-1
+      S3_ENDPOINT_URL: http://minio:9000
     profiles: ["donotstart"]
+    depends_on:
+      minio:
+        condition: service_healthy
 
 volumes:
   postgres_data:
