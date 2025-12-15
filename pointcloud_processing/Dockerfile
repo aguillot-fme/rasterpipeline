@@ -22,6 +22,9 @@ COPY pointcloud_processing /app/pointcloud_processing
 # Copy shared storage helpers to enable S3/MinIO reads/writes from pointcloud tasks.
 COPY storage /app/storage
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app:/opt/airflow/dags/repo
+
+# Fail the build early if modules are not importable.
+RUN python -c "import pointcloudlib, pointcloud_processing; print('imports ok')"
 
 CMD ["python", "-c", "import pointcloudlib; print('pointcloudlib ok')"]
