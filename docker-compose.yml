@@ -23,6 +23,11 @@ x-airflow-common: &airflow-common
     AWS_SECRET_ACCESS_KEY: minioadmin  # dev-only; override in prod
     AWS_DEFAULT_REGION: us-east-1
     S3_ENDPOINT_URL: http://minio:9000
+    # Observability (Prometheus via StatsD exporter)
+    AIRFLOW__METRICS__STATSD_ON: 'true'
+    AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
+    AIRFLOW__METRICS__STATSD_PORT: '8125'
+    AIRFLOW__METRICS__STATSD_PREFIX: airflow
 
   volumes:
     - ./dags:/opt/airflow/dags
@@ -35,6 +40,8 @@ x-airflow-common: &airflow-common
     minio:
       condition: service_healthy
     docker-proxy:
+      condition: service_started
+    statsd-exporter:
       condition: service_started
 
 services:
@@ -119,6 +126,46 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
+  statsd-exporter:
+    image: prom/statsd-exporter:v0.27.1
+    command:
+      - "--statsd.listen-udp=:8125"
+      - "--web.listen-address=:9102"
+    ports:
+      - "9102:9102"
+      - "8125:8125/udp"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    depends_on:
+      - statsd-exporter
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
   processing-image:
     image: raster-processing:latest
     build:
@@ -129,3 +176,5 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  prometheus_data:
+  grafana_data:
