@@ -19,7 +19,7 @@ default_args = {
     "retry_delay": timedelta(minutes=5),
 }
 
-DEFAULT_POINTCLOUD_PATH = os.getenv("DEFAULT_POINTCLOUD_PATH", "")
+DEFAULT_POINTCLOUD_PATH = os.getenv("DEFAULT_POINTCLOUD_PATH", "synthetic://sample.las")
 POINTCLOUD_IMAGE = os.getenv("POINTCLOUD_IMAGE", "pointcloud-processing:latest")
 PROCESSING_NETWORK = os.getenv("DOCKER_NETWORK", "rasterpipeline_default")
 DOCKER_SOCKET = os.getenv("DOCKER_SOCKET") or os.getenv("DOCKER_HOST") or "unix://var/run/docker.sock"
@@ -104,4 +104,3 @@ with dag:
     )
 
     ingest_task >> enrich_task
-

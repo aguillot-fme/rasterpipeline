@@ -2,6 +2,7 @@ import argparse
 import os
 import uuid
 from datetime import datetime
+from io import BytesIO
 from urllib.parse import urlparse
 
 from storage import StorageBackend, get_storage_backend
@@ -10,8 +11,31 @@ from storage import StorageBackend, get_storage_backend
 SUPPORTED_EXTENSIONS = {".las", ".csv"}
 
 
+def _generate_sample_las_bytes(num_points: int = 200) -> bytes:
+    import numpy as np
+    import laspy
+
+    rng = np.random.default_rng(0)
+    points = rng.normal(size=(num_points, 3)).astype("float64")
+
+    header = laspy.LasHeader(point_format=3, version="1.2")
+    las = laspy.LasData(header)
+    las.x = points[:, 0]
+    las.y = points[:, 1]
+    las.z = points[:, 2]
+
+    buf = BytesIO()
+    las.write(buf)
+    return buf.getvalue()
+
+
 def _read_source(storage: StorageBackend, source_path: str) -> tuple[bytes, str]:
     parsed = urlparse(source_path)
+    if parsed.scheme in {"synthetic", "generate"}:
+        filename = parsed.netloc or os.path.basename(parsed.path) or "sample.las"
+        data = _generate_sample_las_bytes()
+        return data, filename
+
     if parsed.scheme in ("", "file"):
         local_path = source_path if parsed.scheme else os.path.abspath(source_path)
         if not os.path.exists(local_path):
@@ -22,7 +46,7 @@ def _read_source(storage: StorageBackend, source_path: str) -> tuple[bytes, str]
         return data, filename
 
     data = storage.read_file(source_path)
-    filename = os.path.basename(parsed.path.rstrip("/"))
+    filename = os.path.basename(parsed.path.rstrip("/")) or parsed.netloc
     if not filename:
         raise ValueError(f"Cannot derive filename from source_path: {source_path}")
     return data, filename
@@ -63,4 +87,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

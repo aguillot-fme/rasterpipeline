@@ -13,6 +13,7 @@ def test_pointcloud_enrich_dag_structure():
 
     dag = dag_bag.dags["pointcloud_enrich"]
     assert len(dag.tasks) == 2
+    assert dag.params.get("default_pointcloud_path")
 
     ingest = dag.get_task("ingest_task")
     enrich = dag.get_task("enrich_task")
