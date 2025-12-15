@@ -178,8 +178,6 @@ services:
     build:
       context: .
       dockerfile: pointcloud_processing/Dockerfile
-      args:
-        POINTCLOUDLIB_REF: v0.1.1
     profiles: ["donotstart"]
 
 volumes:
