@@ -58,7 +58,15 @@ def test_compute_embeddings_local(mock_rio, mock_processor, mock_model, mock_til
     mock_model.from_pretrained.return_value.to.return_value = mock_model_instance
     
     # Mock Processor
-    mock_processor.from_pretrained.return_value.return_value = {"pixel_values": torch.zeros((1, 3, 224, 224))}
+    mock_inputs = MagicMock()
+    mock_inputs.to.return_value = {"pixel_values": torch.zeros((1, 3, 224, 224))}
+    # Behave like a dict for **inputs unpacking if the code uses it, 
+    # but the code does inputs = ... .to(device), then model(**inputs).
+    # If model(**inputs) is called, inputs must be a dict-like or unpacking works.
+    # Actually, model(**inputs) means inputs is a dict.
+    # So .to() should return a dict.
+    mock_inputs.to.return_value = {'pixel_values': torch.zeros((1, 3, 224, 224))} 
+    mock_processor.from_pretrained.return_value.return_value = mock_inputs
 
     # Run
     compute_embeddings(mock_tiles_dir, output_dir)

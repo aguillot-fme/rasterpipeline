@@ -1,4 +1,5 @@
 import argparse
+import os
 import rasterio
 from rasterio.windows import Window
 import numpy as np
@@ -55,7 +56,8 @@ def tile_raster(input_file, output_dir, tile_size=256, overlap=0, fs_args_str=No
                 # Create output filename
                 tile_id = f"{dataset_name}_x{col}_y{row}"
                 tile_filename = f"{tile_id}.tif"
-                tile_path = os.path.join(output_dir, tile_filename)
+                # Save to local temp dir first
+                tile_path = os.path.join(local_output_dir, tile_filename)
                 
                 # Save tile
                 kwargs = src.meta.copy()

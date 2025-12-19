@@ -16,5 +16,6 @@ dependencies:
   - transformers
   - timm
   - scikit-learn
+  - pytest
   - pip:
     - opencv-python-headless
