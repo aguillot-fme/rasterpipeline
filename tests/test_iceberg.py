@@ -1,3 +1,6 @@
+import pytest
+
+pytest.importorskip("airflow.providers.apache.iceberg")
 from airflow.providers.apache.iceberg.hooks.iceberg import IcebergHook
 
 

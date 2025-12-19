@@ -1,4 +1,6 @@
 import pytest
+
+pytest.importorskip("airflow.models")
 from airflow.models import DagBag
 import os
 

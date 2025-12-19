@@ -5,7 +5,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import rasterio
+
+rasterio = pytest.importorskip("rasterio")
 from rasterio.io import MemoryFile
 from rasterio.transform import from_origin
 

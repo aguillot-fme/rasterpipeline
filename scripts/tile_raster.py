@@ -7,6 +7,7 @@ import pandas as pd
 import fsspec
 import json
 import shutil
+import duckdb
 
 def tile_raster(input_file, output_dir, tile_size=256, overlap=0, fs_args_str=None):
     """
@@ -87,7 +88,17 @@ def tile_raster(input_file, output_dir, tile_size=256, overlap=0, fs_args_str=No
     # Save index
     df = pd.DataFrame(tile_records)
     index_path = os.path.join(local_output_dir, 'index.parquet')
-    df.to_parquet(index_path, index=False)
+    try:
+        df.to_parquet(index_path, index=False)
+    except Exception as e:
+        # analytics-embeddings image may not have a parquet engine (pyarrow/fastparquet).
+        # DuckDB can always write parquet without extra deps.
+        print(f"pandas.to_parquet failed ({type(e).__name__}: {e}); falling back to DuckDB COPY...")
+        con = duckdb.connect()
+        con.register("tiles_index", df)
+        safe_path = index_path.replace("'", "''")
+        con.execute(f"COPY tiles_index TO '{safe_path}' (FORMAT PARQUET)")
+        con.close()
     print(f"Created {len(tile_records)} tiles and index at {index_path}")
 
     # Upload to S3 if needed
@@ -105,7 +116,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
     parser.add_argument("--output_dir", required=True)
+    parser.add_argument("--tile_size", type=int, default=256)
     parser.add_argument("--fs_args", default="{}", help="JSON string of fs args")
     args = parser.parse_args()
     
-    tile_raster(args.input, args.output_dir, args.fs_args)
+    tile_raster(args.input, args.output_dir, tile_size=args.tile_size, fs_args_str=args.fs_args)

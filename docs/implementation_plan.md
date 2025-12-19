@@ -39,7 +39,7 @@ Implement a new Airflow DAG `raster_prep_and_embeddings` to ingest, tile, and ge
 - Skip new Postgres tables for now. Use DuckDB for analytics.
 
 ### Airflow DAGs
-#### [NEW] [dags/raster_embeddings_dag.py](file:///d:/rasterpipeline/dags/raster_embeddings_dag.py)
+#### [NEW] [airflow/dags/dag_raster_embeddings.py](file:///d:/rasterpipeline/airflow/dags/dag_raster_embeddings.py)
 - **Tasks**:
     1.  `register_dataset`: Logic to check/create path in MinIO.
     2.  `ingest_raster`: DockerOperator (`raster-processing`).

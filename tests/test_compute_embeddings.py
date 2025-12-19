@@ -5,11 +5,42 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import numpy as np
 import sys
-import torch
+
+torch = pytest.importorskip("torch")
 
 # Add scripts to path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from scripts.compute_embeddings import compute_embeddings
+
+def _has_parquet_writer() -> bool:
+    import importlib.util
+
+    return any(
+        importlib.util.find_spec(mod) is not None
+        for mod in ("pyarrow", "fastparquet", "duckdb")
+    )
+
+
+if not _has_parquet_writer():
+    pytest.skip(
+        "No parquet engine available (need one of: pyarrow, fastparquet, duckdb)",
+        allow_module_level=True,
+    )
+
+
+def _write_parquet(df: pd.DataFrame, path: str) -> None:
+    try:
+        df.to_parquet(path, index=False)
+        return
+    except Exception:
+        import duckdb
+
+        con = duckdb.connect()
+        con.register("df", df)
+        safe_path = path.replace("'", "''")
+        con.execute(f"COPY df TO '{safe_path}' (FORMAT PARQUET)")
+        con.close()
+
 
 @pytest.fixture
 def mock_tiles_dir():
@@ -31,15 +62,15 @@ def mock_tiles_dir():
     
     # Create index
     df = pd.DataFrame(df_data)
-    df.to_parquet(os.path.join(tmp_dir, 'index.parquet'))
+    _write_parquet(df, os.path.join(tmp_dir, "index.parquet"))
     
     yield tmp_dir
     # cleanup handled by test runner or OS eventually, or explicitly if needed
 
 @patch("scripts.compute_embeddings.AutoModel")
 @patch("scripts.compute_embeddings.AutoImageProcessor")
-@patch("rasterio.open")
-def test_compute_embeddings_local(mock_rio, mock_processor, mock_model, mock_tiles_dir):
+@patch("scripts.compute_embeddings.rasterio")
+def test_compute_embeddings_local(mock_rasterio, mock_processor, mock_model, mock_tiles_dir):
     """Test embedding generation loop locally."""
     output_dir = tempfile.mkdtemp()
     
@@ -47,7 +78,7 @@ def test_compute_embeddings_local(mock_rio, mock_processor, mock_model, mock_til
     mock_src = MagicMock()
     # Return random image array (3, 224, 224)
     mock_src.read.return_value = np.zeros((3, 224, 224), dtype=np.uint8)
-    mock_rio.return_value.__enter__.return_value = mock_src
+    mock_rasterio.open.return_value.__enter__.return_value = mock_src
     
     # Mock Model Output
     mock_model_instance = MagicMock()

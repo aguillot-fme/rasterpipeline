@@ -2,10 +2,11 @@ import os
 import shutil
 import tempfile
 import numpy as np
-import rasterio
+import pytest
+
+rasterio = pytest.importorskip("rasterio")
 from rasterio.transform import from_origin
 import pandas as pd
-import pytest
 from unittest.mock import MagicMock, patch
 import sys
 

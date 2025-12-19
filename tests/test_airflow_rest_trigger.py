@@ -82,6 +82,8 @@ def test_trigger_dag_via_rest():
     """
     List existing DAG runs and trigger raster_ingest via Airflow's REST API (v2) using JWT bearer auth.
     """
+    if os.getenv("RUN_AIRFLOW_REST_TESTS", "").strip() not in {"1", "true", "yes"}:
+        pytest.skip("Set RUN_AIRFLOW_REST_TESTS=1 to run Airflow REST integration test")
     # Base API URL (v2 for DAG operations); caller can override via env
     base_http = os.getenv("AIRFLOW_REST_URL", "http://localhost:8080")
     base_api = os.getenv("AIRFLOW_API_BASE", f"{base_http}/api/v2")
