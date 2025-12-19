@@ -1,0 +1,17 @@
+FROM pdal/pdal:latest
+
+# Install python-pdal and numpy into the existing 'pdal' environment
+RUN conda install -n pdal -y -c conda-forge \
+    python-pdal \
+    numpy \
+    && conda clean -afy
+
+# FIX: Set PROJ_LIB for the pdal environment
+# Standard path for conda envs is /opt/conda/envs/<name>/share/proj
+ENV PROJ_LIB=/opt/conda/envs/pdal/share/proj
+
+# Set working directory
+WORKDIR /opt/airflow
+
+# Ensure scripts can be run
+USER root

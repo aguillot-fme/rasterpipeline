@@ -1,0 +1,21 @@
+name: analytics
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.10
+  - pip
+  - rasterio
+  - duckdb
+  - psycopg2
+  - boto3
+  - s3fs
+  - pandas
+  - pytorch
+  - torchvision
+  - transformers
+  - timm
+  - scikit-learn
+  - pytest
+  - pip:
+    - opencv-python-headless
