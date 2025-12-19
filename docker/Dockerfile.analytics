@@ -1,0 +1,16 @@
+FROM mambaorg/micromamba:1.5-bullseye-slim
+
+COPY --chown=$MAMBA_USER:$MAMBA_USER docker/environment.yml /tmp/env.yaml
+RUN micromamba install -y -n base -f /tmp/env.yaml && \
+    micromamba clean --all --yes
+
+# Add project root to PYTHONPATH
+ENV PYTHONPATH=/app:/opt/airflow/dags/repo
+
+WORKDIR /app
+# We will copy scripts at runtime or mount them, but let's copy the scripts dir for standalone usage
+COPY --chown=$MAMBA_USER:$MAMBA_USER scripts /app/scripts
+COPY --chown=$MAMBA_USER:$MAMBA_USER storage /app/storage
+
+# Default command
+CMD ["python", "--version"]
