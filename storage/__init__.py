@@ -12,12 +12,12 @@ def get_storage_backend() -> StorageBackend:
     """
     storage_type = os.getenv("STORAGE_TYPE", "local").lower()
     
-    if storage_type == "s3":
+    if storage_type in {"s3", "minio"}:
         return S3Storage(
             bucket_name=os.getenv("S3_BUCKET", "raster-data"),
             prefix=os.getenv("S3_PREFIX", "")
         )
     else:
         # Default to local
-        base_path = os.getenv("LOCAL_STORAGE_PATH", " /opt/airflow/dags/repo")
+        base_path = os.getenv("LOCAL_STORAGE_PATH", "/opt/airflow/dags/repo")
         return LocalStorage(base_path=base_path)

@@ -119,7 +119,7 @@ def test_compute_embeddings_s3_index(mock_pd_read, mock_fs, mock_tiles_dir):
     # We abort early to just check read_parquet call
     mock_pd_read.side_effect = Exception("Stop here") 
     
-    fs_args = '{"AWS_ENDPOINT_URL": "http://minio"}'
+    fs_args = '{"AWS_ENDPOINT_URL": "http://minio", "STORAGE_TYPE": "s3"}'
     try:
         compute_embeddings("s3://bucket/tiles", "/tmp/out", fs_args)
     except Exception:
@@ -127,4 +127,5 @@ def test_compute_embeddings_s3_index(mock_pd_read, mock_fs, mock_tiles_dir):
     
     mock_pd_read.assert_called()
     call_kwargs = mock_pd_read.call_args[1]
-    assert call_kwargs['storage_options']['endpoint_url'] == "http://minio"
+    assert call_kwargs["storage_options"]["client_kwargs"]["endpoint_url"] == "http://minio"
+    assert "STORAGE_TYPE" not in call_kwargs["storage_options"]

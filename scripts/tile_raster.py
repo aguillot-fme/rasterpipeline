@@ -9,6 +9,35 @@ import json
 import shutil
 import duckdb
 
+def _sanitize_storage_options(fs_args_str: str | None) -> dict:
+    storage_options = json.loads(fs_args_str) if fs_args_str else {}
+    if "AWS_ENDPOINT_URL" in storage_options:
+        client_kwargs = storage_options.get("client_kwargs") or {}
+        if isinstance(client_kwargs, dict) and "endpoint_url" not in client_kwargs:
+            client_kwargs["endpoint_url"] = storage_options["AWS_ENDPOINT_URL"]
+            storage_options["client_kwargs"] = client_kwargs
+    if "AWS_ACCESS_KEY_ID" in storage_options and "key" not in storage_options:
+        storage_options["key"] = storage_options["AWS_ACCESS_KEY_ID"]
+    if "AWS_SECRET_ACCESS_KEY" in storage_options and "secret" not in storage_options:
+        storage_options["secret"] = storage_options["AWS_SECRET_ACCESS_KEY"]
+    if "AWS_DEFAULT_REGION" in storage_options:
+        client_kwargs = storage_options.get("client_kwargs") or {}
+        if isinstance(client_kwargs, dict) and "region_name" not in client_kwargs:
+            client_kwargs["region_name"] = storage_options["AWS_DEFAULT_REGION"]
+            storage_options["client_kwargs"] = client_kwargs
+
+    allowed = {
+        "key",
+        "secret",
+        "token",
+        "client_kwargs",
+        "config_kwargs",
+        "use_ssl",
+        "anon",
+    }
+    return {k: v for k, v in storage_options.items() if k in allowed}
+
+
 def tile_raster(input_file, output_dir, tile_size=256, overlap=0, fs_args_str=None):
     """
     Splits a raster into tiles of given size and saves them as separate files.
@@ -18,9 +47,7 @@ def tile_raster(input_file, output_dir, tile_size=256, overlap=0, fs_args_str=No
     dataset_name = os.path.basename(input_file).split('.')[0]
     
     # Configure filesystem
-    storage_options = json.loads(fs_args_str) if fs_args_str else {}
-    if 'AWS_ENDPOINT_URL' in storage_options:
-        storage_options['endpoint_url'] = storage_options['AWS_ENDPOINT_URL']
+    storage_options = _sanitize_storage_options(fs_args_str)
     
     # Handle Input (Download if S3)
     local_input_path = input_file

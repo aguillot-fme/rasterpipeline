@@ -43,10 +43,37 @@ def _write_json_to_dest(payload: Dict[str, Any], dest: str, storage_options: dic
             f.write(data)
 
 
-def qa_metrics(tiles_dir: str, embeddings_dir: str, fs_args_str: str = "{}") -> Dict[str, Any]:
+def _sanitize_storage_options(fs_args_str: str | None) -> dict:
     storage_options = json.loads(fs_args_str) if fs_args_str else {}
     if "AWS_ENDPOINT_URL" in storage_options:
-        storage_options["endpoint_url"] = storage_options["AWS_ENDPOINT_URL"]
+        client_kwargs = storage_options.get("client_kwargs") or {}
+        if isinstance(client_kwargs, dict) and "endpoint_url" not in client_kwargs:
+            client_kwargs["endpoint_url"] = storage_options["AWS_ENDPOINT_URL"]
+            storage_options["client_kwargs"] = client_kwargs
+    if "AWS_ACCESS_KEY_ID" in storage_options and "key" not in storage_options:
+        storage_options["key"] = storage_options["AWS_ACCESS_KEY_ID"]
+    if "AWS_SECRET_ACCESS_KEY" in storage_options and "secret" not in storage_options:
+        storage_options["secret"] = storage_options["AWS_SECRET_ACCESS_KEY"]
+    if "AWS_DEFAULT_REGION" in storage_options:
+        client_kwargs = storage_options.get("client_kwargs") or {}
+        if isinstance(client_kwargs, dict) and "region_name" not in client_kwargs:
+            client_kwargs["region_name"] = storage_options["AWS_DEFAULT_REGION"]
+            storage_options["client_kwargs"] = client_kwargs
+
+    allowed = {
+        "key",
+        "secret",
+        "token",
+        "client_kwargs",
+        "config_kwargs",
+        "use_ssl",
+        "anon",
+    }
+    return {k: v for k, v in storage_options.items() if k in allowed}
+
+
+def qa_metrics(tiles_dir: str, embeddings_dir: str, fs_args_str: str = "{}") -> Dict[str, Any]:
+    storage_options = _sanitize_storage_options(fs_args_str)
 
     index_path = _join_uri(tiles_dir, "index.parquet")
     embeddings_path = _join_uri(embeddings_dir, "embeddings.parquet")
