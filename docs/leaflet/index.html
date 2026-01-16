@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Raster Patch Similarity</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./vendor/leaflet.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">Raster Similarity</p>
+          <h1>Pick a point, trigger the DAG, compare patches</h1>
+        </div>
+        <div class="status-chip" id="statusChip">Idle</div>
+      </header>
+
+      <main class="app-main">
+        <aside class="panel">
+          <section>
+            <h2>Raster Source</h2>
+            <div class="field">
+              <label for="geotiffFile">Local GeoTIFF</label>
+              <input type="file" id="geotiffFile" accept=".tif,.tiff" />
+            </div>
+            <div class="field">
+              <label for="geotiffUrl">GeoTIFF URL (CORS required)</label>
+              <input type="text" id="geotiffUrl" placeholder="http://localhost:8000/data/sample.tif" />
+              <button id="loadUrlBtn" class="btn secondary">Load URL</button>
+            </div>
+            <p class="hint">
+              Small GeoTIFFs work best. For projected CRS, provide a proj4 definition if needed.
+            </p>
+          </section>
+
+          <section>
+            <h2>Click Coordinates</h2>
+            <div class="grid">
+              <div class="field">
+                <label for="coordX">X</label>
+                <input type="text" id="coordX" readonly />
+              </div>
+              <div class="field">
+                <label for="coordY">Y</label>
+                <input type="text" id="coordY" readonly />
+              </div>
+            </div>
+            <div class="field">
+              <label for="proj4Def">Proj4 definition (optional)</label>
+              <textarea id="proj4Def" rows="2" placeholder="+proj=utm +zone=35 +datum=WGS84 +units=m +no_defs"></textarea>
+            </div>
+            <button id="pickPointBtn" class="btn secondary">Enable Point Pick</button>
+            <button id="nativeZoomBtn" class="btn secondary">Zoom to Native Resolution</button>
+          </section>
+
+          <section>
+            <h2>Airflow Trigger</h2>
+            <div class="field">
+              <label for="airflowUrl">Airflow URL</label>
+              <input type="text" id="airflowUrl" value="http://localhost:8080" />
+            </div>
+            <div class="grid">
+              <div class="field">
+                <label for="airflowUser">User</label>
+                <input type="text" id="airflowUser" value="airflow" />
+              </div>
+              <div class="field">
+                <label for="airflowPassword">Password</label>
+                <input type="password" id="airflowPassword" value="airflow" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="dagId">DAG ID</label>
+              <input type="text" id="dagId" value="raster_patch_similarity" />
+            </div>
+            <div class="grid">
+              <div class="field">
+                <label for="datasetId">Dataset ID</label>
+                <input type="text" id="datasetId" placeholder="sample_raster" />
+              </div>
+              <div class="field">
+                <label for="topK">Top-K</label>
+                <input type="number" id="topK" value="5" min="1" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="tilesDir">Tiles Dir (optional)</label>
+              <input type="text" id="tilesDir" placeholder="s3://raster-data/tiles/sample_raster" />
+            </div>
+            <div class="field">
+              <label for="embeddingsDir">Embeddings Dir (optional)</label>
+              <input type="text" id="embeddingsDir" placeholder="s3://raster-data/embeddings/sample_raster" />
+            </div>
+            <button id="triggerBtn" class="btn primary">Trigger DAG</button>
+          </section>
+
+          <section>
+            <h2>Results</h2>
+            <div class="field">
+              <label for="minioHttp">MinIO HTTP Base</label>
+              <input type="text" id="minioHttp" value="http://localhost:9000" />
+            </div>
+            <div class="field">
+              <label for="resultsUrl">Results CSV URL (optional)</label>
+              <input type="text" id="resultsUrl" placeholder="http://localhost:9000/raster-data/embeddings/.../similarity_results.csv" />
+            </div>
+            <button id="loadResultsBtn" class="btn secondary">Load Results</button>
+          </section>
+        </aside>
+
+        <section class="map-panel">
+          <div id="map"></div>
+          <div class="results-panel">
+            <h3>Closest Patches</h3>
+            <table id="resultsTable">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Score</th>
+                  <th>Tile ID</th>
+                  <th>Tile Path</th>
+                  <th>Query X</th>
+                  <th>Query Y</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="log-panel">
+            <h3>Activity</h3>
+            <pre id="logOutput"></pre>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./vendor/leaflet.js"></script>
+    <script src="./vendor/proj4.js"></script>
+    <script src="./vendor/geotiff.js"></script>
+    <script src="./vendor/georaster.js"></script>
+    <script src="./vendor/georaster-layer-for-leaflet.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

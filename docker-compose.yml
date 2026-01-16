@@ -13,6 +13,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__API_AUTH__JWT_SECRET: shared_jwt_secret # dev-only; replace with a secret value in prod
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
     AIRFLOW__CORE__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
+    AIRFLOW__API__ENABLE_CORS: 'true'
     _PIP_ADDITIONAL_REQUIREMENTS: ''
     DOCKER_HOST: tcp://docker-proxy:2375
     DOCKER_SOCKET: tcp://docker-proxy:2375
