@@ -29,3 +29,6 @@ data/
 raw/
 processed/
 *.log
+
+# Local model weights (large binaries)
+models/**/*.pth

@@ -23,9 +23,22 @@ def ingest_raster(
     Returns:
         The ID of the ingested file.
     """
+    file_id, _dest_path = ingest_raster_with_dest_path(storage, source_path, destination_dir)
+    return file_id
+
+
+def ingest_raster_with_dest_path(
+    storage: StorageBackend,
+    source_path: str,
+    destination_dir: str = "raw",
+) -> tuple[str, str]:
+    """
+    Ingest a raster file into the system and return both the file ID and the
+    destination path (key) written in the configured storage backend.
+    """
     # Generate a unique ID
     file_id = str(uuid.uuid4())
-    
+
     parsed = urlparse(source_path)
     if parsed.scheme in ("", "file"):
         local_path = source_path if parsed.scheme else os.path.abspath(source_path)
@@ -40,21 +53,21 @@ def ingest_raster(
         filename = os.path.basename(parsed.path.rstrip("/"))
         if not filename:
             raise ValueError(f"Cannot derive filename from source_path: {source_path}")
-        
+
     # Validate it's a raster by trying to read metadata
     try:
         _ = read_raster_metadata(data)
     except Exception as e:
         raise ValueError(f"Invalid raster file: {e}")
-        
+
     # Define destination path
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     dest_path = f"{destination_dir}/{timestamp}_{file_id}/{filename}"
-    
+
     # Write to storage
     storage.write_file(dest_path, data)
-    
-    return file_id
+
+    return file_id, dest_path
 
 
 def main():

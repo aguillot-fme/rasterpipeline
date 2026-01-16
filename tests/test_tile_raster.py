@@ -1,11 +1,13 @@
+import json
 import os
 import shutil
 import tempfile
 import numpy as np
-import rasterio
+import pytest
+
+rasterio = pytest.importorskip("rasterio")
 from rasterio.transform import from_origin
 import pandas as pd
-import pytest
 from unittest.mock import MagicMock, patch
 import sys
 
@@ -77,3 +79,25 @@ def test_tile_raster_s3_upload(mock_fs_cls, mock_raster_file):
     assert mock_fs_instance.put.called
     args, _ = mock_fs_instance.put.call_args
     assert args[1] == output_dir # Destination
+
+
+@patch("fsspec.filesystem")
+def test_tile_raster_sanitizes_fs_args(mock_fs_cls, mock_raster_file):
+    output_dir = "s3://bucket/test_out"
+    mock_fs_instance = MagicMock()
+    mock_fs_cls.return_value = mock_fs_instance
+
+    fs_args = json.dumps(
+        {
+            "AWS_ENDPOINT_URL": "http://minio:9000",
+            "AWS_ACCESS_KEY_ID": "minioadmin",
+            "AWS_SECRET_ACCESS_KEY": "minioadmin",
+            "STORAGE_TYPE": "s3",
+        }
+    )
+
+    tile_raster(mock_raster_file, output_dir, tile_size=256, fs_args_str=fs_args)
+
+    _, call_kwargs = mock_fs_cls.call_args
+    assert call_kwargs.get("client_kwargs", {}).get("endpoint_url") == "http://minio:9000"
+    assert "STORAGE_TYPE" not in call_kwargs
