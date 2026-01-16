@@ -309,7 +309,15 @@ def compute_embeddings(tiles_dir, output_dir, fs_args_str=None, model_path: str 
             
         embeddings.append(embedding)
         
-    df['embedding'] = embeddings
+    # L2-normalize embeddings for cosine similarity consistency.
+    normalized = []
+    for emb in embeddings:
+        arr = np.asarray(emb, dtype=np.float32)
+        norm = np.linalg.norm(arr)
+        if norm and norm > 0:
+            arr = arr / norm
+        normalized.append(arr.tolist())
+    df['embedding'] = normalized
     
     # Save Output
     if output_dir.startswith("s3://"):
