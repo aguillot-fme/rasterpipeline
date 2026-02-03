@@ -1,75 +1,62 @@
-# Implementation Plan - Raster Embeddings DAG
+# Implementation Plan: DuckDB + LLM Automated Reporting
 
 ## Goal
-Implement a new Airflow DAG `raster_prep_and_embeddings` to ingest, tile, and generate embeddings for raster datasets using DINOv3. This enables semantic search and analytics on raster data.
+Implement a new Airflow DAG (`duckdb_llm_reporting`) that replicates the workflow described in [SpatialWorld's FME Blog](https://spatialworld.fi/fi/fme-blog-duckdb-llm-reporting/). This workflow automates data analysis by using DuckDB for efficient querying and LLMs for reasoning, SQL generation, and result interpretation.
 
 ## User Review Required
 > [!IMPORTANT]
-> **New Docker Image**: A new `analytics-embeddings` Docker image will be created. This image will be large (PyTorch + Transformers).
-> **Model Weights**: DINOv3 model weights will need to be downloaded.
-> **Database**: We will use DuckDB with `vss` extension for vector storage and analytics, keeping the main Postgres instance for Airflow metadata only.
+> **LLM API Key**: This implementation requires access to an LLM provider (e.g., OpenAI). The user must provide an `OPENAI_API_KEY` (or compatible) via Airflow Connections or Environment Variables.
+>
+> **Docker Image Update**: The `analytics-embeddings` image will be updated to include `openai` and `jinja2`. Rebuilding the image will be required.
 
 ## Proposed Changes
 
-### Configuration
-#### [MODIFY] [docker-compose.yml](file:///d:/rasterpipeline/docker-compose.yml)
-- Add `analytics-embeddings` service.
-- Revert any changes to `postgres` service (keep it as standard `postgres:13`).
+### 1. Docker Environment (`docker/`)
+#### [MODIFY] [environment.yml](file:///d:/rasterpipeline/docker/environment.yml)
+- Add `openai` (for API access).
+- Add `jinja2` (for report templating).
+- Add `openpyxl` (if we need to support Excel ingestion as per the blog example).
 
-### Docker Images
-#### [NEW] [docker/Dockerfile.analytics](file:///d:/rasterpipeline/docker/Dockerfile.analytics)
-- Base: `mambaorg/micromamba`
-- Dependencies: `duckdb`, `pytorch`, etc.
+### 2. Workflow Logic (`scripts/llm_reporting/`)
+Create a new package for the reporting logic tasks.
 
-### Data Storage Strategy
-- **Metadata**: Simple JSON manifests in MinIO or keep `datasets` table in Postgres (optional).
-- **Embeddings**: Stored as Parquet files in MinIO (`embeddings/{dataset_id}/*.parquet`).
-- **Analytics/Search**: Use Dockerized DuckDB processing to load Parquet, build local indexes (vss), and run queries.
+#### [NEW] `scripts/llm_reporting/profile.py`
+- **Function**: `analyze_dataset(s3_path)`
+- **Logic**: Use DuckDB to load the file (Parquet/CSV), extract schema (`DESCRIBE`), calculate basic stats (`SUMMARIZE`), and grab a sample row. Return as JSON string.
 
+#### [NEW] `scripts/llm_reporting/planner.py`
+- **Function**: `generate_questions(profile_json, user_goal)`
+- **Logic**: Call LLM (System: Planner) to generate analytical questions and abstract SQL plans based on the schema.
 
-### Docker Images
-#### [NEW] [docker/Dockerfile.analytics](file:///d:/rasterpipeline/docker/Dockerfile.analytics)
-- Base: `mambaorg/micromamba:1.5-bullseye-slim` (or similar)
-- Package Manager: `micromamba`
-- Dependencies: Create an `environment.yml` with `pytorch`, `torchvision`, `transformers`, `rasterio`, `duckdb`, `psycopg2`, etc.
-- This allows for faster and more reliable environment solving compared to pip/conda.
+#### [NEW] `scripts/llm_reporting/sql_generator.py`
+- **Function**: `generate_queries(questions_plan)`
+- **Logic**: Call LLM (System: SQL Expert) to convert plans into valid DuckDB SQL queries (targeting the S3 Parquet file).
 
-### Database
-#### [SKIP] [scripts/init_db.sql](file:///d:/rasterpipeline/scripts/init_db.sql)
-- Skip new Postgres tables for now. Use DuckDB for analytics.
+#### [NEW] `scripts/llm_reporting/executor.py`
+- **Function**: `run_queries(queries_dict)`
+- **Logic**: Execute generated SQL against MinIO data using DuckDB. Save results to MinIO (e.g., as JSON or CSV).
 
-### Airflow DAGs
-#### [NEW] [airflow/dags/dag_raster_embeddings.py](file:///d:/rasterpipeline/airflow/dags/dag_raster_embeddings.py)
-- **Tasks**:
-    1.  `register_dataset`: Logic to check/create path in MinIO.
-    2.  `ingest_raster`: DockerOperator (`raster-processing`).
-    3.  `tile_raster`: DockerOperator (`raster-processing`).
-    4.  `compute_embeddings`: DockerOperator (`analytics-embeddings`). Inference -> Parquet.
-    5.  `qa_metrics`: DockerOperator (`analytics-embeddings`). DuckDB query on Parquet.
-    6.  `mark_dataset_ready`: Optional.
+#### [NEW] `scripts/llm_reporting/reporter.py`
+- **Function**: `compile_report(results_dict)`
+- **Logic**: Call LLM (System: Analyst) to synthesize findings into Markdown. Convert to HTML using Jinja2/Markdown lib.
 
-
-### Scripts (Task Implementations)
-#### [NEW] [scripts/tile_raster.py](file:///d:/rasterpipeline/scripts/tile_raster.py)
-- Uses `rasterio` or `gdal` to tile the input raster.
-- Generates `index.parquet` (DuckDB or Pandas) with geometries.
-
-#### [NEW] [scripts/compute_embeddings.py](file:///d:/rasterpipeline/scripts/compute_embeddings.py)
-- Loads DINOv3 model.
-- Iterates over tiles.
-- Computes embeddings.
-- Saves to MinIO/Postgres.
-
-#### [NEW] [scripts/qa_metrics.py](file:///d:/rasterpipeline/scripts/qa_metrics.py)
-- Computes coverage and stats.
+### 3. Airflow DAG (`airflow/dags/`)
+#### [NEW] `airflow/dags/llm_reporting_dag.py`
+- **Orchestration**:
+    1.  **Ingest**: Upload generic file to MinIO (Sensor or manual trigger param).
+    2.  **Profile**: `DockerOperator` running `profile.py`.
+    3.  **Plan & Generate**: `DockerOperator` running `planner.py` & `sql_generator.py`.
+    4.  **Execute**: `DockerOperator` running `executor.py`.
+    5.  **Report**: `DockerOperator` running `reporter.py`.
 
 ## Verification Plan
 
 ### Automated Tests
-- Create a test DAG run using the `run_manual_test.ps1` or a new test script.
-- Verify data in MinIO (files exist).
-- Verify data in Postgres (rows exist).
+- Unit tests for the Python scripts in `scripts/llm_reporting/`.
+- Mock LLM responses to test the pipeline flow without spending API credits.
 
 ### Manual Verification
-- Check Airflow UI for DAG success.
-- Inspect generated tiles and embeddings (sample check).
+1.  **Security**: Configure `OPENAI_API_KEY` as an Airflow Variable (or Connection) in the UI. **Do not** bake this into `docker-compose.yml`.
+2.  **Data**: Place a sample CSV (e.g., sales data or the Helsinki cycling data) in `data/`.
+3.  **Execution**: Trigger the DAG via Airflow UI.
+4.  **Result**: Verify the generated HTML report exists in MinIO.
