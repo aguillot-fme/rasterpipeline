@@ -1,7 +1,7 @@
 # Implementation Plan: DuckDB + LLM Automated Reporting
 
 ## Goal
-Implement a new Airflow DAG (`duckdb_llm_reporting`) that replicates the workflow described in [SpatialWorld's FME Blog](https://spatialworld.fi/fi/fme-blog-duckdb-llm-reporting/). This workflow automates data analysis by using DuckDB for efficient querying and LLMs for reasoning, SQL generation, and result interpretation.
+Implement a new Airflow DAG (`duckdb_llm_reporting`) that replicates the workflow described in SpatialWorld's FME blog. The workflow automates data analysis by using DuckDB for efficient querying and LLMs for reasoning, SQL generation, and result interpretation.
 
 ## User Review Required
 > [!IMPORTANT]
@@ -22,7 +22,7 @@ Implement a new Airflow DAG (`duckdb_llm_reporting`) that replicates the workflo
 #### [MODIFY] [environment.yml](file:///d:/rasterpipeline/docker/environment.yml)
 - Add `openai` (for API access).
 - Add `jinja2` (for report templating).
-- Add `openpyxl` (if we need to support Excel ingestion as per the blog example).
+- Add `openpyxl` (if we need to support Excel ingestion).
 - Add `sqlglot` (SQL validation and safety gating).
 - Add `markdown-it-py` (or similar) for Markdown to HTML conversion.
 
@@ -31,7 +31,7 @@ Create a new package for the reporting logic tasks.
 
 #### [NEW] `scripts/llm_reporting/profile.py`
 - **Function**: `analyze_dataset(s3_path)`
-- **Logic**: Use DuckDB to load the file (Parquet/CSV), extract schema (`DESCRIBE` + exported schema SQL), calculate basic stats (`SUMMARIZE`), and grab a sample row. Return as JSON string.
+- **Logic**: Use DuckDB to load the file (Parquet/CSV), extract schema (`DESCRIBE` + exported schema SQL), calculate basic stats (`SUMMARIZE`), and grab sample rows. Return JSON.
 - **Output**: `profile.json` with `schema_sql`, `summary`, `sample_rows`, and `dataset_signature` (hash of input).
 
 #### [NEW] `scripts/llm_reporting/planner.py`
@@ -41,7 +41,7 @@ Create a new package for the reporting logic tasks.
 
 #### [NEW] `scripts/llm_reporting/sql_generator.py`
 - **Function**: `generate_queries(questions_plan)`
-- **Logic**: Call LLM (System: SQL Expert) to convert plans into valid DuckDB SQL queries (targeting the S3 Parquet file).
+- **Logic**: Call LLM (System: SQL Expert) to convert plans into valid DuckDB SQL queries.
 - **Validation**: Parse with `sqlglot`, enforce `SELECT` only, disallow DDL/DML, and append `LIMIT 30` if missing.
 - **Output**: `queries.json` (validated SQL + metadata).
 
