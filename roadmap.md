@@ -27,7 +27,7 @@
 - [ ] **Apache Iceberg Integration**:
   - [x] Basic `IcebergWriter` and Schema.
   - [x] Initial write task in `raster_ingest` DAG.
-  - [ ] Full Catalog implementation (REST/Hive).
+  - [ ] Full Polaris implementation (REST/Hive).
   - [ ] Schema evolution support.
 - [ ] **CI/CD Pipeline**:
   - [ ] GitHub Actions / GitLab CI workflows.
