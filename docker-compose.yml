@@ -131,6 +131,20 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  airflow-test:
+    <<: *airflow-common
+    entrypoint: ["pytest"]
+    command:
+      - "-c"
+      - "/opt/airflow/dags/repo/tests/pytest.ini"
+      - "/opt/airflow/dags/repo/tests/llm_reporting/test_llm_reporting_dag.py"
+    working_dir: /opt/airflow/dags/repo
+    profiles: [ "tests" ]
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
   docker-proxy:
     image: tecnativa/docker-socket-proxy
     environment:
@@ -222,6 +236,42 @@ services:
       AWS_DEFAULT_REGION: us-east-1
       S3_ENDPOINT_URL: http://minio:9000
     profiles: [ "donotstart" ]
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./tests:/app/tests
+      - ./data:/app/data
+      - ./scripts:/app/scripts
+
+  analytics-embeddings-test:
+    image: analytics-embeddings:latest
+    command: ["pytest", "-c", "tests/pytest.ini", "tests/llm_reporting"]
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET: raster-data
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    profiles: [ "tests" ]
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./tests:/app/tests
+      - ./data:/app/data
+      - ./scripts:/app/scripts
+      - ./airflow:/app/airflow
+
+  integration-test:
+    image: analytics-embeddings:latest
+    command: ["pytest", "-c", "tests/pytest.ini", "-m", "integration", "tests/llm_reporting"]
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET: raster-data
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_KEY: ${MINIO_KEY:-}
+    profiles: [ "tests" ]
     depends_on:
       minio:
         condition: service_healthy
