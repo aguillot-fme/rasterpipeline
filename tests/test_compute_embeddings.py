@@ -73,13 +73,23 @@ def mock_tiles_dir():
 def test_compute_embeddings_local(mock_rasterio, mock_processor, mock_model, mock_tiles_dir):
     """Test embedding generation loop locally."""
     output_dir = tempfile.mkdtemp()
-    
+
     # Mock Rasterio
     mock_src = MagicMock()
     # Return random image array (3, 224, 224)
     mock_src.read.return_value = np.zeros((3, 224, 224), dtype=np.uint8)
+    mock_src.width = 224
+    mock_src.height = 224
+    mock_src.transform = MagicMock()
     mock_rasterio.open.return_value.__enter__.return_value = mock_src
-    
+    mock_rasterio.windows.Window.side_effect = lambda col, row, w, h: (col, row, w, h)
+    mock_rasterio.windows.bounds.side_effect = lambda window, _transform: (
+        float(window[0]),
+        float(window[1]),
+        float(window[0] + window[2]),
+        float(window[1] + window[3]),
+    )
+
     # Mock Model Output
     mock_model_instance = MagicMock()
     # last_hidden_state shape: (batch, seq, hidden) -> (1, 197, 384) e.g.
@@ -107,8 +117,11 @@ def test_compute_embeddings_local(mock_rasterio, mock_processor, mock_model, moc
     assert os.path.exists(out_file)
     
     df_out = pd.read_parquet(out_file)
-    assert len(df_out) == 2
+    assert len(df_out) == 18
     assert "embedding" in df_out.columns
+    assert "patch_row" in df_out.columns
+    assert "patch_col" in df_out.columns
+    assert "patch_min_x" in df_out.columns
     # Check embedding is list/array
     assert isinstance(df_out.iloc[0]['embedding'], np.ndarray) or isinstance(df_out.iloc[0]['embedding'], list)
 

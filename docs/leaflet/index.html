@@ -91,14 +91,7 @@
                 <input type="number" id="topK" value="5" min="1" />
               </div>
             </div>
-            <div class="field">
-              <label for="tilesDir">Tiles Dir (optional)</label>
-              <input type="text" id="tilesDir" placeholder="s3://raster-data/tiles/sample_raster" />
-            </div>
-            <div class="field">
-              <label for="embeddingsDir">Embeddings Dir (optional)</label>
-              <input type="text" id="embeddingsDir" placeholder="s3://raster-data/embeddings/sample_raster" />
-            </div>
+            <p class="hint">Tiles and embeddings paths are derived from the dataset ID.</p>
             <button id="triggerBtn" class="btn primary">Trigger DAG</button>
           </section>
 
@@ -107,12 +100,17 @@
             <div class="field">
               <label for="minioHttp">MinIO HTTP Base</label>
               <input type="text" id="minioHttp" value="http://localhost:9000" />
+              <p class="hint">Use the S3 API port (9000), not the MinIO console (9001).</p>
             </div>
             <div class="field">
               <label for="resultsUrl">Results CSV URL (optional)</label>
               <input type="text" id="resultsUrl" placeholder="http://localhost:9000/raster-data/embeddings/.../similarity_results.csv" />
             </div>
-            <button id="loadResultsBtn" class="btn secondary">Load Results</button>
+            <div class="grid">
+              <button id="loadResultsBtn" class="btn secondary">Load Results</button>
+              <button id="drawPatchesBtn" class="btn secondary">Draw Patches</button>
+            </div>
+            <button id="clearPatchesBtn" class="btn secondary">Clear Patches</button>
           </section>
         </aside>
 
@@ -125,8 +123,11 @@
                 <tr>
                   <th>Rank</th>
                   <th>Score</th>
-                  <th>Tile ID</th>
-                  <th>Tile Path</th>
+                  <th>Patch ID</th>
+                  <th>Patch Min X</th>
+                  <th>Patch Min Y</th>
+                  <th>Patch Max X</th>
+                  <th>Patch Max Y</th>
                   <th>Query X</th>
                   <th>Query Y</th>
                 </tr>
@@ -147,6 +148,6 @@
     <script src="./vendor/geotiff.js"></script>
     <script src="./vendor/georaster.js"></script>
     <script src="./vendor/georaster-layer-for-leaflet.js"></script>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=2"></script>
   </body>
 </html>

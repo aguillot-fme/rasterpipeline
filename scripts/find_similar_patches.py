@@ -88,6 +88,11 @@ def _read_parquet(path: str, storage_options: dict) -> pd.DataFrame:
         print(f"pandas.read_parquet failed ({type(e).__name__}: {e}); falling back to DuckDB read_parquet...")
         if duckdb is None:
             raise RuntimeError("duckdb is required for parquet fallback reads") from e
+        if path.startswith("s3://"):
+            fs = fsspec.filesystem("s3", **storage_options)
+            local_path = "/tmp/duckdb_parquet.parquet"
+            fs.get(path, local_path)
+            path = local_path
         con = duckdb.connect()
         safe_path = path.replace("'", "''")
         df = con.execute(f"SELECT * FROM read_parquet('{safe_path}')").df()
@@ -278,16 +283,35 @@ def find_similar_patches(
     if emb_df.empty:
         raise ValueError("Embeddings parquet has no embeddings to search")
 
+    tiles_df = None
+    tile_bounds = {}
+    if tiles_dir:
+        index_path = _join_uri(tiles_dir, "index.parquet")
+        print(f"Reading tiles index from {index_path}")
+        tiles_df = _read_parquet(index_path, storage_options=storage_options)
+        required_cols = {"tile_id", "min_x", "min_y", "max_x", "max_y"}
+        if not required_cols.issubset(set(tiles_df.columns)):
+            missing = required_cols - set(tiles_df.columns)
+            raise ValueError(f"Tiles index missing columns: {sorted(missing)}")
+        else:
+            for _, row in tiles_df.iterrows():
+                tile_bounds[row["tile_id"]] = (
+                    float(row["min_x"]),
+                    float(row["min_y"]),
+                    float(row["max_x"]),
+                    float(row["max_y"]),
+                )
+
+    has_patch_bounds = {"patch_min_x", "patch_min_y", "patch_max_x", "patch_max_y"}.issubset(
+        set(emb_df.columns)
+    )
+
     vectors = np.vstack([np.asarray(v, dtype=np.float32) for v in emb_df["embedding"]])
     norms = np.linalg.norm(vectors, axis=1, keepdims=True)
     norms[norms == 0] = 1.0
     vectors = vectors / norms
 
     results = []
-    vectors = np.vstack([np.asarray(v, dtype=np.float32) for v in emb_df["embedding"]])
-    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
-    norms[norms == 0] = 1.0
-    vectors = vectors / norms
 
     embed_fn = embedder or _build_embedder(model_path) if query_paths else None
 
@@ -306,6 +330,15 @@ def find_similar_patches(
         top_idx = np.argsort(scores)[::-1][:top_k]
         for rank, idx in enumerate(top_idx, start=1):
             row = emb_df.iloc[int(idx)]
+            if has_patch_bounds:
+                bounds = (
+                    row.get("patch_min_x"),
+                    row.get("patch_min_y"),
+                    row.get("patch_max_x"),
+                    row.get("patch_max_y"),
+                )
+            else:
+                bounds = tile_bounds.get(row.get("tile_id")) if tile_bounds else None
             results.append(
                 {
                     "query_path": qpath,
@@ -313,38 +346,52 @@ def find_similar_patches(
                     "query_y": None,
                     "match_tile_id": row.get("tile_id"),
                     "match_tile_path": row.get("tile_path"),
+                    "match_patch_id": row.get("patch_id"),
                     "score": float(scores[int(idx)]),
                     "rank": int(rank),
+                    "match_min_x": bounds[0] if bounds else None,
+                    "match_min_y": bounds[1] if bounds else None,
+                    "match_max_x": bounds[2] if bounds else None,
+                    "match_max_y": bounds[3] if bounds else None,
                 }
             )
 
     if query_coords:
-        if not tiles_dir:
-            raise ValueError("tiles_dir is required when using query_coords")
-        index_path = _join_uri(tiles_dir, "index.parquet")
-        print(f"Reading tiles index from {index_path}")
-        tiles_df = _read_parquet(index_path, storage_options=storage_options)
-        required_cols = {"tile_id", "min_x", "min_y", "max_x", "max_y"}
-        if not required_cols.issubset(set(tiles_df.columns)):
-            missing = required_cols - set(tiles_df.columns)
-            raise ValueError(f"Tiles index missing columns: {sorted(missing)}")
-
         for coord in query_coords:
             x = float(coord["x"])
             y = float(coord["y"])
-            match = tiles_df[
-                (tiles_df["min_x"] <= x)
-                & (tiles_df["max_x"] > x)
-                & (tiles_df["min_y"] <= y)
-                & (tiles_df["max_y"] > y)
-            ]
-            if match.empty:
-                raise ValueError(f"No tile contains point x={x}, y={y}")
-            tile_id = match.iloc[0]["tile_id"]
-            emb_row = emb_df[emb_df["tile_id"] == tile_id]
-            if emb_row.empty:
-                raise ValueError(f"No embedding found for tile_id {tile_id}")
-            qvec = np.asarray(emb_row.iloc[0]["embedding"], dtype=np.float32).reshape(1, -1)
+            if has_patch_bounds:
+                match = emb_df[
+                    (emb_df["patch_min_x"] <= x)
+                    & (emb_df["patch_max_x"] > x)
+                    & (emb_df["patch_min_y"] <= y)
+                    & (emb_df["patch_max_y"] > y)
+                ]
+                if match.empty:
+                    raise ValueError(f"No patch contains point x={x}, y={y}")
+                emb_row = match.iloc[0]
+            else:
+                if not tiles_dir or tiles_df is None:
+                    raise ValueError("tiles_dir is required when using query_coords")
+                required_cols = {"tile_id", "min_x", "min_y", "max_x", "max_y"}
+                if tiles_df is None or not required_cols.issubset(set(tiles_df.columns)):
+                    missing = required_cols - set(tiles_df.columns)
+                    raise ValueError(f"Tiles index missing columns: {sorted(missing)}")
+                match = tiles_df[
+                    (tiles_df["min_x"] <= x)
+                    & (tiles_df["max_x"] > x)
+                    & (tiles_df["min_y"] <= y)
+                    & (tiles_df["max_y"] > y)
+                ]
+                if match.empty:
+                    raise ValueError(f"No tile contains point x={x}, y={y}")
+                tile_id = match.iloc[0]["tile_id"]
+                emb_row = emb_df[emb_df["tile_id"] == tile_id]
+                if emb_row.empty:
+                    raise ValueError(f"No embedding found for tile_id {tile_id}")
+                emb_row = emb_row.iloc[0]
+
+            qvec = np.asarray(emb_row["embedding"], dtype=np.float32).reshape(1, -1)
             qnorm = np.linalg.norm(qvec, axis=1, keepdims=True)
             qvec = qvec / (qnorm if qnorm[0, 0] != 0 else 1.0)
 
@@ -352,6 +399,15 @@ def find_similar_patches(
             top_idx = np.argsort(scores)[::-1][:top_k]
             for rank, idx in enumerate(top_idx, start=1):
                 row = emb_df.iloc[int(idx)]
+                if has_patch_bounds:
+                    bounds = (
+                        row.get("patch_min_x"),
+                        row.get("patch_min_y"),
+                        row.get("patch_max_x"),
+                        row.get("patch_max_y"),
+                    )
+                else:
+                    bounds = tile_bounds.get(row.get("tile_id")) if tile_bounds else None
                 results.append(
                     {
                         "query_path": None,
@@ -359,8 +415,13 @@ def find_similar_patches(
                         "query_y": y,
                         "match_tile_id": row.get("tile_id"),
                         "match_tile_path": row.get("tile_path"),
+                        "match_patch_id": row.get("patch_id"),
                         "score": float(scores[int(idx)]),
                         "rank": int(rank),
+                        "match_min_x": bounds[0] if bounds else None,
+                        "match_min_y": bounds[1] if bounds else None,
+                        "match_max_x": bounds[2] if bounds else None,
+                        "match_max_y": bounds[3] if bounds else None,
                     }
                 )
 

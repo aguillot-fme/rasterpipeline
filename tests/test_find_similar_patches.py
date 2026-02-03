@@ -31,6 +31,11 @@ def test_find_similar_patches_topk(tmp_path, monkeypatch):
         {
             "tile_id": ["tile_a", "tile_b"],
             "tile_path": ["tile_a.tif", "tile_b.tif"],
+            "patch_id": ["tile_a_r0_c0", "tile_b_r0_c0"],
+            "patch_min_x": [0.0, 100.0],
+            "patch_min_y": [0.0, 0.0],
+            "patch_max_x": [50.0, 150.0],
+            "patch_max_y": [50.0, 50.0],
             "embedding": [np.array([1.0, 0.0]), np.array([0.0, 1.0])],
         }
     )
@@ -57,33 +62,24 @@ def test_find_similar_patches_topk(tmp_path, monkeypatch):
 
     assert os.path.exists(out_path)
     assert len(results) == 2
-    assert results.iloc[0]["match_tile_id"] == "tile_a"
-    assert results.iloc[1]["match_tile_id"] == "tile_b"
+    assert results.iloc[0]["match_patch_id"] == "tile_a_r0_c0"
+    assert results.iloc[1]["match_patch_id"] == "tile_b_r0_c0"
     assert os.path.exists(csv_path)
 
 
 def test_find_similar_patches_query_coords(tmp_path):
-    tiles_dir = tmp_path / "tiles"
     embeddings_dir = tmp_path / "embeddings"
-    tiles_dir.mkdir(parents=True)
     embeddings_dir.mkdir(parents=True)
-
-    tiles_df = pd.DataFrame(
-        {
-            "tile_id": ["tile_a", "tile_b"],
-            "tile_path": ["tile_a.tif", "tile_b.tif"],
-            "min_x": [0.0, 100.0],
-            "min_y": [0.0, 0.0],
-            "max_x": [100.0, 200.0],
-            "max_y": [100.0, 100.0],
-        }
-    )
-    _write_parquet(tiles_df, tiles_dir / "index.parquet")
 
     emb_df = pd.DataFrame(
         {
             "tile_id": ["tile_a", "tile_b"],
             "tile_path": ["tile_a.tif", "tile_b.tif"],
+            "patch_id": ["tile_a_r0_c0", "tile_b_r0_c0"],
+            "patch_min_x": [0.0, 100.0],
+            "patch_min_y": [0.0, 0.0],
+            "patch_max_x": [100.0, 200.0],
+            "patch_max_y": [100.0, 100.0],
             "embedding": [np.array([1.0, 0.0]), np.array([0.0, 1.0])],
         }
     )
@@ -96,9 +92,8 @@ def test_find_similar_patches_query_coords(tmp_path):
         output_path=str(out_path),
         fs_args_str="{}",
         top_k=1,
-        tiles_dir=str(tiles_dir),
         query_coords=[{"x": 50.0, "y": 50.0}],
     )
 
     assert len(results) == 1
-    assert results.iloc[0]["match_tile_id"] == "tile_a"
+    assert results.iloc[0]["match_patch_id"] == "tile_a_r0_c0"

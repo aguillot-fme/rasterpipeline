@@ -173,6 +173,66 @@ def _extract_embedding_vit(model, pixel_values: torch.Tensor) -> np.ndarray:
         return emb[0].detach().cpu().numpy()
 
 
+def _make_patch_preprocess():
+    from torchvision import transforms  # type: ignore
+
+    # SAT-493M-style normalization (no resize) to preserve patch grid.
+    mean = (0.430, 0.411, 0.296)
+    std = (0.213, 0.156, 0.143)
+    return transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=std),
+        ]
+    )
+
+
+def _infer_grid(tokens: int) -> int:
+    grid = int(round(tokens ** 0.5))
+    if grid * grid != tokens:
+        raise ValueError(f"Token count {tokens} is not a perfect square")
+    return grid
+
+
+def _tokens_to_patch_grid(tokens: torch.Tensor) -> np.ndarray:
+    if tokens.ndim != 3:
+        raise ValueError(f"Expected token tensor with 3 dims, got {tokens.ndim}")
+
+    token_count = int(tokens.shape[1])
+    grid = None
+    if token_count > 1:
+        maybe_grid = int(round((token_count - 1) ** 0.5))
+        if maybe_grid * maybe_grid == token_count - 1:
+            tokens = tokens[:, 1:, :]
+            grid = maybe_grid
+
+    if grid is None:
+        grid = _infer_grid(token_count)
+
+    tokens = tokens[0].detach().cpu().numpy()
+    return tokens.reshape(grid, grid, -1)
+
+
+def _extract_patch_embeddings(model, pixel_values: torch.Tensor) -> np.ndarray:
+    with torch.no_grad():
+        if hasattr(model, "forward_features"):
+            feats = model.forward_features(pixel_values)
+        else:
+            feats = model(pixel_values)
+
+        if isinstance(feats, dict):
+            if "x_norm_patchtokens" in feats:
+                tokens = feats["x_norm_patchtokens"]
+            elif "x" in feats:
+                tokens = feats["x"]
+            else:
+                raise ValueError("Patch tokens not found in model outputs")
+        else:
+            tokens = feats
+
+        return _tokens_to_patch_grid(tokens)
+
+
 def _sanitize_storage_options(fs_args_str: str | None) -> dict:
     storage_options = json.loads(fs_args_str) if fs_args_str else {}
     if "AWS_ENDPOINT_URL" in storage_options:
@@ -243,11 +303,10 @@ def compute_embeddings(tiles_dir, output_dir, fs_args_str=None, model_path: str 
 
     # Load model: prefer local DINOv3 weights if provided to keep runs offline.
     vit_model = None
-    vit_preprocess = None
+    patch_preprocess = _make_patch_preprocess()
     if model_path:
         print(f"Loading local DINOv3 weights from {model_path}")
-        vit_model, vit_img_size = _load_dinov3_timm_model(model_path, device=device)
-        vit_preprocess = _make_vit_preprocess(vit_img_size)
+        vit_model, _vit_img_size = _load_dinov3_timm_model(model_path, device=device)
     else:
         if AutoImageProcessor is None or AutoModel is None:
             raise RuntimeError("transformers is not installed and no --model_path was provided")
@@ -294,30 +353,57 @@ def compute_embeddings(tiles_dir, output_dir, fs_args_str=None, model_path: str 
             
             # Create PIL
             image = Image.fromarray(img_array)
-            
-        if vit_model is not None:
-            pixel_values = vit_preprocess(image).unsqueeze(0).to(device)
-            embedding = _extract_embedding_vit(vit_model, pixel_values).tolist()
-        else:
-            inputs = processor(images=image, return_tensors="pt").to(device)
-            with torch.no_grad():
-                outputs = model(**inputs)
-                # Use [CLS] token embedding or mean pooling
-                # DINOv2 typically uses the first token for global representation
-                last_hidden_states = outputs.last_hidden_state
-                embedding = last_hidden_states[0, 0, :].cpu().numpy().tolist()
-            
-        embeddings.append(embedding)
+
+            if vit_model is not None:
+                pixel_values = patch_preprocess(image).unsqueeze(0).to(device)
+                patch_tokens = _extract_patch_embeddings(vit_model, pixel_values)
+            else:
+                inputs = processor(images=image, return_tensors="pt")
+                if hasattr(processor, "image_mean") and hasattr(processor, "image_std"):
+                    pixel_values = inputs["pixel_values"].to(device)
+                else:
+                    pixel_values = patch_preprocess(image).unsqueeze(0).to(device)
+                with torch.no_grad():
+                    outputs = model(**{"pixel_values": pixel_values})
+                    last_hidden_states = outputs.last_hidden_state
+                patch_tokens = _tokens_to_patch_grid(last_hidden_states)
+
+            grid_h, grid_w, dim = patch_tokens.shape
+            patch_w = src.width / grid_w
+            patch_h = src.height / grid_h
+            for patch_row in range(grid_h):
+                for patch_col in range(grid_w):
+                    col_off = patch_col * patch_w
+                    row_off = patch_row * patch_h
+                    window = rasterio.windows.Window(col_off, row_off, patch_w, patch_h)
+                    bounds = rasterio.windows.bounds(window, src.transform)
+                    embeddings.append(
+                        {
+                            "dataset_id": row.get("dataset_id"),
+                            "tile_id": row.get("tile_id"),
+                            "tile_path": row.get("tile_path"),
+                            "patch_id": f"{row.get('tile_id')}_r{patch_row}_c{patch_col}",
+                            "patch_row": int(patch_row),
+                            "patch_col": int(patch_col),
+                            "patch_min_x": float(bounds[0]),
+                            "patch_min_y": float(bounds[1]),
+                            "patch_max_x": float(bounds[2]),
+                            "patch_max_y": float(bounds[3]),
+                            "embedding": patch_tokens[patch_row, patch_col].astype(np.float32).tolist(),
+                        }
+                    )
         
     # L2-normalize embeddings for cosine similarity consistency.
     normalized = []
-    for emb in embeddings:
+    for row in embeddings:
+        emb = row["embedding"]
         arr = np.asarray(emb, dtype=np.float32)
         norm = np.linalg.norm(arr)
         if norm and norm > 0:
             arr = arr / norm
-        normalized.append(arr.tolist())
-    df['embedding'] = normalized
+        row["embedding"] = arr.tolist()
+        normalized.append(row)
+    df = pd.DataFrame(normalized)
     
     # Save Output
     if output_dir.startswith("s3://"):

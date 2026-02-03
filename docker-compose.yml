@@ -14,6 +14,11 @@ x-airflow-common: &airflow-common
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
     AIRFLOW__CORE__AUTH_MANAGER: 'airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager'
     AIRFLOW__API__ENABLE_CORS: 'true'
+    AIRFLOW__API__ACCESS_CONTROL_ALLOW_HEADERS: 'authorization,content-type'
+    AIRFLOW__API__ACCESS_CONTROL_ALLOW_METHODS: 'GET,POST,OPTIONS'
+    AIRFLOW__API__ACCESS_CONTROL_ALLOW_ORIGINS: 'http://localhost:8000'
+    DEV_CODE_MOUNT: 'true'
+    HOST_REPO_PATH: 'D:\rasterpipeline'
     _PIP_ADDITIONAL_REQUIREMENTS: ''
     DOCKER_HOST: tcp://docker-proxy:2375
     DOCKER_SOCKET: tcp://docker-proxy:2375
@@ -77,6 +82,18 @@ services:
       retries: 3
     volumes:
       - minio_data:/data
+
+  minio-init:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command: >
+      -c "mc alias set local http://minio:9000 minioadmin minioadmin
+      && mc admin config set local api cors_allow_origin='http://localhost:8000'
+      && mc admin service restart local"
+    restart: "no"
 
   airflow-init:
     <<: *airflow-common

@@ -46,11 +46,17 @@ S3_BUCKET = COMMON_ENV.get("S3_BUCKET", "raster-data")
 S3_PREFIX = COMMON_ENV.get("S3_PREFIX", "")
 S3_ENDPOINT_URL = COMMON_ENV.get("S3_ENDPOINT_URL", "http://minio:9000")
 LOCAL_STORAGE_PATH = os.getenv("LOCAL_STORAGE_PATH", "/opt/airflow/dags/repo")
-FS_ARGS_JSON = (
-    json.dumps({"AWS_ENDPOINT_URL": S3_ENDPOINT_URL})
-    if STORAGE_TYPE in {"s3", "minio"}
-    else "{}"
-)
+if STORAGE_TYPE in {"s3", "minio"}:
+    fs_args = {
+        "AWS_ENDPOINT_URL": S3_ENDPOINT_URL,
+        "AWS_ACCESS_KEY_ID": COMMON_ENV.get("AWS_ACCESS_KEY_ID"),
+        "AWS_SECRET_ACCESS_KEY": COMMON_ENV.get("AWS_SECRET_ACCESS_KEY"),
+        "AWS_DEFAULT_REGION": COMMON_ENV.get("AWS_DEFAULT_REGION"),
+    }
+    fs_args = {k: v for k, v in fs_args.items() if v}
+    FS_ARGS_JSON = json.dumps(fs_args)
+else:
+    FS_ARGS_JSON = "{}"
 
 
 def _join_s3(prefix: str, *parts: str) -> str:
@@ -64,7 +70,6 @@ def _output_dir(base_dir: str, dataset_id: str) -> str:
     if STORAGE_TYPE in {"s3", "minio"}:
         return _join_s3(S3_PREFIX, base_dir, dataset_id)
     return os.path.join(LOCAL_STORAGE_PATH, base_dir, dataset_id)
-
 
 def get_docker_operator(task_id, image, command, environment=None, mounts=None, **kwargs):
     merged_env = {**COMMON_ENV, **(environment or {})}
@@ -96,10 +101,14 @@ def prepare_inputs(**kwargs):
     dag_run = kwargs.get("dag_run")
     conf = (dag_run.conf if dag_run and getattr(dag_run, "conf", None) else {}) or {}
     dataset_id = conf.get("dataset_id") or "sample_raster"
+    run_id = getattr(dag_run, "run_id", None) or ""
 
     embeddings_dir = conf.get("embeddings_dir") or _output_dir("embeddings", dataset_id)
-    tiles_dir = conf.get("tiles_dir") or _output_dir("tiles", dataset_id)
-    output_path = conf.get("output_path") or ""
+    output_path = conf.get("output_path")
+    if not output_path and run_id:
+        output_path = _join_uri(embeddings_dir, run_id, "similarity_results.parquet")
+    if output_path is None:
+        output_path = ""
 
     query_paths = conf.get("query_paths")
     if isinstance(query_paths, list):
@@ -109,14 +118,19 @@ def prepare_inputs(**kwargs):
     elif query_paths is None:
         query_paths = ""
 
+    query_coords_raw = conf.get("query_coords")
+    query_coords = json.dumps(query_coords_raw) if query_coords_raw else ""
+    tiles_dir = conf.get("tiles_dir") or (_output_dir("tiles", dataset_id) if query_coords else "")
+
     return {
+        "dataset_id": dataset_id,
         "embeddings_dir": embeddings_dir,
         "tiles_dir": tiles_dir,
         "output_path": output_path,
         "query_paths": query_paths,
         "query_paths_file": conf.get("query_paths_file") or "",
         "query_dir": conf.get("query_dir") or "",
-        "query_coords": json.dumps(conf.get("query_coords")) if conf.get("query_coords") else "",
+        "query_coords": query_coords,
         "model_path": conf.get("model_path") or "",
         "top_k": int(conf.get("top_k", 5)),
     }
